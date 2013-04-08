@@ -1,0 +1,425 @@
+<!--
+Google IO 2012 HTML5 Slide Template
+
+Authors: Eric Bidelman <ebidel@gmail.com>
+         Luke Mahe <lukem@google.com>
+
+URL: https://code.google.com/p/io-2012-slides
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>A Collection of Case Studies of using a Domain-Specific Language for Image Processing Tasks in Parallel Architectures</title>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="chrome=1">
+  <!--<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">-->
+  <!--<meta name="viewport" content="width=device-width, initial-scale=1.0">-->
+  <!--This one seems to work all the time, but really small on ipad-->
+  <!--<meta name="viewport" content="initial-scale=0.4">-->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" media="all" href="theme/css/default.css">
+  <link rel="stylesheet" media="all" href="theme/css/app.css">
+  <link rel="stylesheet" media="only screen and (max-device-width: 480px)" href="theme/css/phone.css">
+  <base target="_blank"> <!-- This amazingness opens all links in a new tab. -->
+  <script data-main="js/slides" src="js/require-1.0.8.min.js"></script>
+</head>
+<body style="opacity: 0">
+
+<slides class="layout-widescreen">
+
+<!-- <slide class="logoslide nobackground">
+  <article class="flexbox vcenter">
+    <span><img src="images/google_developers_logo.png"></span>
+  </article>
+</slide>
+ -->
+<slide class="title-slide segue nobackground">
+  <aside class="gdbar"><img src="images/google_developers_icon_128.png"></aside>
+  <!-- The content of this hgroup is replaced programmatically through the slide_config.json. -->
+  <hgroup class="auto-fadein">
+    <h1 data-config-title><!-- populated from slide_config.json --></h1>
+    <h2 data-config-subtitle><!-- populated from slide_config.json --></h2>
+    <p data-config-presenter><!-- populated from slide_config.json --></p>
+  </hgroup>
+</slide>
+
+
+<slide class="big" >
+  
+    <hgroup>
+      <h2>Where are we?</h2>
+      <h3></h3>
+    </hgroup>
+    <article ><p>CPU frequencies have stalled for a while.</p>
+<ul class="build">
+<li>But transistor density continues to increase accordingly Moore's Law</li>
+<li>CPU: vectorization and multi-core architectures</li>
+<li>GPU: floating-point processing at the cost of flexibility</li>
+<li>The free lunch is over!</li>
+</ul></article>
+ 
+</slide>
+
+<slide  >
+  
+    <hgroup>
+      <h2>Image Processing is privileged in this new world</h2>
+      <h3></h3>
+    </hgroup>
+    <article ><ul class="build">
+<li>Lots of parallelism</li>
+<li>Floating-point calculations</li>
+<li>Rigid and predictable memory accesses (most of the times...)</li>
+</ul></article>
+ 
+</slide>
+
+<slide class="big" >
+  
+    <hgroup>
+      <h2>But...</h2>
+      <h3>Performance-aware imaging code is a mess</h3>
+    </hgroup>
+    <article ><ul class="build">
+<li>Vectorization: Auto-vectorization, Intrinsics</li>
+<li>Multi-threading: OpenMP, pthreads, etc</li>
+<li>GPU: CUDA, OpenCL, GLSL</li>
+<li>A combination the above for an application that wants to take the best of the machine</li>
+</ul></article>
+ 
+</slide>
+
+<slide class="segue dark nobackground" >
+  
+    <aside class="gdbar"><img src="images/google_developers_icon_128.png"></aside>
+    <hgroup class="auto-fadein">
+      <h2>Halide DSL</h2>
+      <h3></h3>
+    </hgroup>
+  
+</slide>
+
+<slide class="big" >
+  
+    <hgroup>
+      <h2>Domain-Specific Languages for Image Processing</h2>
+      <h3></h3>
+    </hgroup>
+    <article ><ul class="build">
+<li>Not a new development ([1], [2], [3], [4])</li>
+<li>But previous approaches just have support for pixelwise operations or didn't work in the CPU and GPU</li>
+<li>Impossible to express convolutions, sampling, etc</li>
+</ul></article>
+ 
+</slide>
+
+<slide class="big" >
+  
+    <hgroup>
+      <h2>Halide</h2>
+      <h3></h3>
+    </hgroup>
+    <article ><ul class="build">
+<li>Algorithm specification in a pure functional language that is architecture-agnostic</li>
+<li>Execution configuration (schedule) that tells how this algorithm is going to run and is very dependent on the target architecture</li>
+</ul></article>
+ 
+</slide>
+
+<slide  >
+  
+    <hgroup>
+      <h2>Specification of a Box-Blur filter</h2>
+      <h3></h3>
+    </hgroup>
+    <article ><pre class="prettyprint" data-lang="cpp">
+UniformImage input(UInt(16), 3);
+Var x,y,c;
+Func clamped, blur_x, blur_y;
+
+// Don't access image out of the bounds
+clamped(x,y,c) = input(clamp(x, 0,input.width() -1),
+                       clamp(y, 0,input.height()-1), c);
+
+blur_x(x,y,c) = (  clamped(x-1,y,c)
+                 + clamped(x  ,y,c)
+                 + clamped(x+1,y,c))/3.0f;
+
+blur_y(x,y,c) = (  blur_x(x,y-1,c)
+                 + blur_x(x,y  ,c)
+                 + blur_x(x,y+1,c))/3.0f;
+</pre></article>
+ 
+</slide>
+
+<slide  >
+  
+    <hgroup>
+      <h2>Schedule</h2>
+      <h3></h3>
+    </hgroup>
+    <article ><pre class="prettyprint" data-lang="cpp">
+blur_x.root();
+blur_y.root();
+
+blur_x.root().parallel(y);
+blur_y.root().parallel(y);
+
+blur_y.split(y, y_out, y_in, 8);
+blur_y.parallel(y_out);
+blur_y.vectorize(x, 8);
+blur_x.chunk(y_out, y_in);
+blur_x.vectorize(x, 8);
+</pre></article>
+ 
+</slide>
+
+<slide class="image" >
+  
+    <hgroup>
+      <h2>Box-Blur performance</h2>
+      <h3></h3>
+    </hgroup>
+    <article ><p><img alt="Box Blur" src="images/box-blur.png" /></p></article>
+ 
+</slide>
+
+<slide class="segue dark nobackground" >
+  
+    <aside class="gdbar"><img src="images/google_developers_icon_128.png"></aside>
+    <hgroup class="auto-fadein">
+      <h2>Case Studies</h2>
+      <h3></h3>
+    </hgroup>
+  
+</slide>
+
+<slide class="big" >
+  
+    <hgroup>
+      <h2>RGB to CIELAB</h2>
+      <h3></h3>
+    </hgroup>
+    <article ><ul class="build">
+<li>CIELAB color space is perceptually uniform</li>
+<li>Pixelwise but very expensive operation (many trancendental functions: exponentiation, cubic root)</li>
+<li>How does Halide perform in a compute-bound task?</li>
+</ul></article>
+ 
+</slide>
+
+<slide class="big" >
+  
+    <hgroup>
+      <h2>Motion-Blur</h2>
+      <h3></h3>
+    </hgroup>
+    <article ><ul class="build">
+<li>Simulate an integration of multiple images in the camera sensors along the moving path of the camera.</li>
+<li>Large convolution</li>
+<li>How does Halide perform in a memory-bound task?</li>
+</ul></article>
+ 
+</slide>
+
+<slide class="image" >
+  
+    <hgroup>
+      <h2>Motion-Blur</h2>
+      <h3>Example</h3>
+    </hgroup>
+    <article ><p><img alt="Motion-Blur" src="images/mb.png" /></p></article>
+ 
+</slide>
+
+<slide class="big" >
+  
+    <hgroup>
+      <h2>Bilateral Filtering</h2>
+      <h3></h3>
+    </hgroup>
+    <article ><blockquote>
+<p>The Bilateral Filter is a non-linear technique that can blur an image while respecting strong edges.
+Its ability to decompose an image into different scales without causing haloes after modification has
+made it ubiquitous in computational photography applications such as tone mapping, style transfer,
+relighting, and denoising.</p>
+</blockquote>
+<p><strong>Paris et al. Bilateral filtering: Theory and applications</strong></p></article>
+ 
+</slide>
+
+<slide class="big" >
+  
+    <hgroup>
+      <h2>Bilateral Filtering</h2>
+      <h3></h3>
+    </hgroup>
+    <article ><ul class="build">
+<li>Validation against original Halide paper</li>
+<li>Somewhat complex filter pipeline</li>
+<li>Many choices for implementation in the GPU: local memory and texture memory</li>
+<li>The lack of these features is a performance problem in Halide?</li>
+</ul></article>
+ 
+</slide>
+
+<slide class="image" >
+  
+    <hgroup>
+      <h2>Bilateral Filtering</h2>
+      <h3>Example</h3>
+    </hgroup>
+    <article ><p><img alt="Bilateral-Filter" src="images/bf.png" /></p></article>
+ 
+</slide>
+
+<slide class="segue dark nobackground" >
+  
+    <aside class="gdbar"><img src="images/google_developers_icon_128.png"></aside>
+    <hgroup class="auto-fadein">
+      <h2>Results</h2>
+      <h3></h3>
+    </hgroup>
+  
+</slide>
+
+<slide class="image" >
+  
+    <hgroup>
+      <h2>Performance Results</h2>
+      <h3></h3>
+    </hgroup>
+    <article ><p><img alt="Performance" src="images/perf.png" /></p></article>
+ 
+</slide>
+
+<slide class="big" >
+  
+    <hgroup>
+      <h2>Analysis</h2>
+      <h3>CPU</h3>
+    </hgroup>
+    <article ><ul class="build">
+<li>CIELAB: large performance drop in Halide because of the lack of Common Subexpression Elimination (CSE) optimization pass</li>
+<li>Motion-Blur: gcc is unable to auto-vectorize some loops, but Halide is able to do so with an appropriate schedule</li>
+<li>Bilateral Filter: generated code by Halide is almost similar to GCC's</li>
+</ul></article>
+ 
+</slide>
+
+<slide class="big" >
+  
+    <hgroup>
+      <h2>Analysis</h2>
+      <h3>GPU</h3>
+    </hgroup>
+    <article ><ul class="build">
+<li>More similar results between OpenCL and Halide in general:<ul class="build">
+<li>Image Processing applications in the GPU are usually bandwidth-limited</li>
+<li>GPU superior floating-point processing capabilites compared to the CPU</li>
+<li>⇒ These two evens the playing field for both implementations in the GPU</li>
+</ul>
+</li>
+<li>Bilateral Filter: using local and texture memory can make some difference</li>
+</ul></article>
+ 
+</slide>
+
+<slide class="big" >
+  
+    <hgroup>
+      <h2>Code complexity</h2>
+      <h3>Number of lines of each implementation</h3>
+    </hgroup>
+    <article ><table>
+<thead>
+<tr>
+<th>...</th>
+<th>CPU</th>
+<th>OpenCL (GPU)</th>
+<th>Halide (CPU)</th>
+<th>Halide (GPU)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CIELAB</td>
+<td>52</td>
+<td>50</td>
+<td>16 (2)</td>
+<td>16 (1)</td>
+</tr>
+<tr>
+<td>Motion-Blur</td>
+<td>48</td>
+<td>54</td>
+<td>26 (2)</td>
+<td>26 (3)</td>
+</tr>
+<tr>
+<td>Bil. Filter</td>
+<td>155</td>
+<td>306</td>
+<td>36 (6)</td>
+<td>36 (8)</td>
+</tr>
+</tbody>
+</table></article>
+ 
+</slide>
+
+<slide class="big" >
+  
+    <hgroup>
+      <h2>Conclusion</h2>
+      <h3></h3>
+    </hgroup>
+    <article ><ul class="build">
+<li>Halide can match very optimized implementations in C++ and OpenCL</li>
+<li>It is much easier for the Image Processing developer with no experience in code optimization to learn Halide than the current traditional alternatives</li>
+<li>Halide is still a research effort</li>
+<li>None of the problems we found are ineherent to the language</li>
+</ul></article>
+ 
+</slide>
+
+
+<slide class="thank-you-slide segue nobackground">
+  <aside class="gdbar right"><img src="images/google_developers_icon_128.png"></aside>
+  <article class="flexbox vleft auto-fadein">
+    <h2>&lt;Thank You!&gt;</h2>
+    <p>vmaolive@dca.fee.unicamp.br</p>
+  </article>
+  <p class="auto-fadein" data-config-contact>
+    <!-- populated from slide_config.json -->
+  </p>
+</slide>
+
+<!-- <slide class="logoslide dark nobackground">
+  <article class="flexbox vcenter">
+    <span><img src="images/google_developers_logo_white.png"></span>
+  </article>
+</slide> -->
+
+<slide class="backdrop"></slide>
+
+</slides>
+
+<script>
+var _gaq = _gaq || [];
+_gaq.push(['_setAccount', 'UA-XXXXXXXX-1']);
+_gaq.push(['_trackPageview']);
+
+(function() {
+  var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+  ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+  var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+})();
+</script>
+
+<!--[if IE]>
+  <script src="http://ajax.googleapis.com/ajax/libs/chrome-frame/1/CFInstall.min.js"></script>
+  <script>CFInstall.check({mode: 'overlay'});</script>
+<![endif]-->
+</body>
+</html>

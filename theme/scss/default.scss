@@ -975,7 +975,7 @@ aside.gdbar {
       display: none !important;
     }
   }
-  
+
   slides {
     slide {
       &.backdrop {
@@ -1080,4 +1080,15 @@ aside.gdbar {
   pre, code {
     font-family: monospace !important;
   }
+}
+
+
+strong, b, strong *, b *
+{
+  font-weight: bold;
+}
+
+em, i, em *, i *
+{
+  font-style: italic;
 }
