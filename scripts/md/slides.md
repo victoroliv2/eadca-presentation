@@ -41,8 +41,8 @@ title: Domain-Specific Languages for Image Processing
 class: big
 build_lists: true
 
-- Not a new development ([1], [2], [3], [4])
-- But previous approaches just have support for pixelwise operations or didn't work in the CPU and GPU
+- Not a new development
+- But previous approaches have support just for pixelwise operations or didn't work in both CPU and GPU
 - Impossible to express convolutions, sampling, etc
 
 ---
@@ -67,10 +67,12 @@ Func clamped, blur_x, blur_y;
 clamped(x,y,c) = input(clamp(x, 0,input.width() -1),
                        clamp(y, 0,input.height()-1), c);
 
+// Horizontal Pass
 blur_x(x,y,c) = (  clamped(x-1,y,c)
                  + clamped(x  ,y,c)
                  + clamped(x+1,y,c))/3.0f;
 
+// Vertical Pass
 blur_y(x,y,c) = (  blur_x(x,y-1,c)
                  + blur_x(x,y  ,c)
                  + blur_x(x,y+1,c))/3.0f;
@@ -221,6 +223,16 @@ class: big
 build_lists: true
 
 - Halide can match very optimized implementations in C++ and OpenCL
-- It is much easier for the Image Processing developer with no experience in code optimization to learn Halide than the current traditional alternatives
-- Halide is still a research effort
-- None of the problems we found are ineherent to the language
+- It's easier to learn than current traditional alternatives for optimized imaging code
+- Still a research effort
+- But none of the problems we found are ineherent to the language
+
+---
+
+title: References
+class: big
+
+- K. O. W. Group et al., “The opencl specification,” A. Munshi, Ed, 2008.
+- I. C. on Illumination, Recommendations on Uniform Color Spaces, Color-difference Equations, Psychometric Color Terms, ser. Publication CIE. Bureau Central de la CIE, 1978.
+- S. Paris and F. Durand, “A fast approximation of the bilateral filter using a signal processing approach,” ECCV 2006
+- Decoupling Algorithms from Schedules for Easy Optimization of Image Processing Pipelines Jonathan Ragan-Kelley, Andrew Adams, Sylvain Paris, Marc Levoy, Saman Amarasinghe, Frédo Durand. SIGGRAPH 2012
